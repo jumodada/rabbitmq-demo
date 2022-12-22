@@ -1,4 +1,4 @@
-package main
+package Rabbitmq
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ type RabbitMQ struct {
 	MqUrl    string
 }
 
-func newRabbit(queueName string, exchange string, key string) *RabbitMQ {
-	return &RabbitMQ{QueName: queueName, Exchange: exchange, Key: key}
+func NewRabbit(queueName string, exchange string, key string) *RabbitMQ {
+	return &RabbitMQ{QueName: queueName, Exchange: exchange, Key: key, MqUrl: MQUrl}
 }
 
 func (r *RabbitMQ) Destroy() {
@@ -34,7 +34,7 @@ func (r *RabbitMQ) failOnError(err error, message string) {
 }
 
 func rabbitSimpleMode(queueName string) *RabbitMQ {
-	rabbitmq := newRabbit(queueName, "", "")
+	rabbitmq := NewRabbit(queueName, "", "")
 	var err error
 	rabbitmq.conn, err = amqp.Dial(rabbitmq.MqUrl)
 	rabbitmq.failOnError(err, "connected error")
@@ -69,4 +69,45 @@ func (r *RabbitMQ) PublishSimple(message string) {
 		},
 	)
 
+}
+
+func (r *RabbitMQ) ConsumeSimple() {
+	_, err := r.channel.QueueDeclare(r.QueName,
+		// 是否持久化
+		false,
+		//是否自动删除
+		false,
+		// 是否具有排他性
+		false,
+		//是否阻塞
+		false,
+		nil,
+	)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	messages, err := r.channel.Consume(
+		r.QueName,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		fmt.Println(err)
+	}
+	forever := make(chan bool)
+
+	go func() {
+		for d := range messages {
+			log.Printf("Received a messsgae: %s", d.Body)
+			fmt.Println(d.Body)
+		}
+	}()
+
+	log.Printf("[*] waiting for messages, To exit press Ctrl + C")
+	<-forever
 }
